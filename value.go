@@ -38,6 +38,9 @@ func (this *Undefined) Error() string {
 	return fmt.Sprint("not defined")
 }
 
+type ValueChannel chan Value
+type ValueCollection []Value
+
 type Value interface {
 	Path(path string) (Value, error)
 	SetPath(path string, val interface{})
