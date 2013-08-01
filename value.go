@@ -48,6 +48,7 @@ type Value interface {
 	SetIndex(index int, val interface{})
 	Type() int
 	Value() (interface{}, error)
+
 	AddMeta(key string, val interface{})
 	Meta() Value
 }
@@ -74,6 +75,8 @@ func NewValue(val interface{}) Value {
 		return NewArrayValue(val)
 	case map[string]interface{}:
 		return NewObjectValue(val)
+	case Value:
+		return val
 	default:
 		panic(fmt.Sprintf("Cannot create value for type %T", val))
 	}
