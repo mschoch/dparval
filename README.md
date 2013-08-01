@@ -65,12 +65,9 @@ Future Ideas:
 				// (so far we've avoided any fully JSON parsing)
 				// lets see if type was a string
 				if anotherVal.Type() == dparval.STRING {
-					docType, err := anotherVal.Value()
-					if err != nil {
-						log.Printf("Unexpected error: %v", err)
-					} else {
-						log.Printf("The document type was %s", docType.(string))
-					}
+					docType := anotherVal.Value()
+					log.Printf("The document type was %s", docType.(string))
+
 				}
 			}
 		}
