@@ -17,16 +17,6 @@ import (
 	json "github.com/dustin/gojson"
 )
 
-const (
-	NOT_JSON = iota
-	NULL
-	BOOLEAN
-	NUMBER
-	STRING
-	ARRAY
-	OBJECT
-)
-
 type Undefined struct {
 	Path string
 }
@@ -38,90 +28,90 @@ func (this *Undefined) Error() string {
 	return fmt.Sprint("not defined")
 }
 
-type ValueChannel chan Value
-type ValueCollection []Value
+type ValueChannel chan *Value
+type ValueCollection []*Value
 
-type Value interface {
-	Path(path string) (Value, error)
-	SetPath(path string, val interface{})
-	Index(index int) (Value, error)
-	SetIndex(index int, val interface{})
-	Type() int
-	Value() interface{}
+// type Value interface {
+// 	Path(path string) (Value, error)
+// 	SetPath(path string, val interface{})
+// 	Index(index int) (Value, error)
+// 	SetIndex(index int, val interface{})
+// 	Type() int
+// 	Value() interface{}
 
-	AddMeta(key string, val interface{})
-	Meta() Value
-}
+// 	AddMeta(key string, val interface{})
+// 	Meta() Value
+// }
 
-type value struct {
+type Value struct {
 	raw         []byte
 	parsedValue interface{}
-	alias       map[string]Value
+	alias       map[string]*Value
 	parsedType  int
-	meta        Value
+	meta        *Value
 }
 
-func NewValue(val interface{}) Value {
+func NewValue(val interface{}) *Value {
 	switch val := val.(type) {
 	case nil:
-		return NewNullValue()
+		return newNullValue()
 	case bool:
-		return NewBooleanValue(val)
+		return newBooleanValue(val)
 	case float64:
-		return NewNumberValue(val)
+		return newNumberValue(val)
 	case string:
-		return NewStringValue(val)
+		return newStringValue(val)
 	case []interface{}:
-		return NewArrayValue(val)
+		return newArrayValue(val)
 	case map[string]interface{}:
-		return NewObjectValue(val)
-	case Value:
+		return newObjectValue(val)
+	case *Value:
 		return val
 	default:
 		panic(fmt.Sprintf("Cannot create value for type %T", val))
 	}
 }
 
-func NewNullValue() Value {
-	rv := value{
+func newNullValue() *Value {
+	rv := Value{
 		parsedType: NULL,
 	}
 	return &rv
 }
 
-func NewBooleanValue(val bool) Value {
-	rv := value{
+func newBooleanValue(val bool) *Value {
+	rv := Value{
 		parsedType:  BOOLEAN,
 		parsedValue: val,
 	}
 	return &rv
 }
 
-func NewNumberValue(val float64) Value {
-	rv := value{
+func newNumberValue(val float64) *Value {
+	rv := Value{
 		parsedType:  NUMBER,
 		parsedValue: val,
 	}
 	return &rv
 }
 
-func NewStringValue(val string) Value {
-	rv := value{
+func newStringValue(val string) *Value {
+	rv := Value{
 		parsedType:  STRING,
 		parsedValue: val,
 	}
 	return &rv
 }
 
-func NewArrayValue(val []interface{}) Value {
-	rv := value{
+func newArrayValue(val []interface{}) *Value {
+	rv := Value{
 		parsedType: ARRAY,
 	}
 
-	parsedValue := make([]Value, len(val))
+	parsedValue := make([]*Value, len(val))
 	for i, v := range val {
 		switch v := v.(type) {
-		case Value:
+		case *Value:
 			parsedValue[i] = v
 		default:
 			parsedValue[i] = NewValue(v)
@@ -132,31 +122,26 @@ func NewArrayValue(val []interface{}) Value {
 	return &rv
 }
 
-func NewEmptyObjectValue() Value {
-	return NewObjectValue(map[string]interface{}{})
-}
-
-func NewObjectValue(val map[string]interface{}) Value {
-	rv := value{
+func newObjectValue(val map[string]interface{}) *Value {
+	rv := Value{
 		parsedType: OBJECT,
 	}
 
-	parsedValue := make(map[string]Value)
+	parsedValue := make(map[string]*Value)
 	for k, v := range val {
 		switch v := v.(type) {
-		case Value:
+		case *Value:
 			parsedValue[k] = v
 		default:
 			parsedValue[k] = NewValue(v)
 		}
 	}
 	rv.parsedValue = parsedValue
-
 	return &rv
 }
 
-func NewValueFromBytes(bytes []byte) Value {
-	rv := value{
+func NewValueFromBytes(bytes []byte) *Value {
+	rv := Value{
 		raw:         bytes,
 		parsedType:  -1,
 		parsedValue: nil,
@@ -192,7 +177,7 @@ func identifyType(bytes []byte) int {
 	return -1
 }
 
-func (this *value) Path(path string) (Value, error) {
+func (this *Value) Path(path string) (*Value, error) {
 	// aliases always have priority
 
 	if this.alias != nil {
@@ -203,7 +188,7 @@ func (this *value) Path(path string) (Value, error) {
 	}
 	// next we already parsed, used that
 	switch parsedValue := this.parsedValue.(type) {
-	case map[string]Value:
+	case map[string]*Value:
 		result, ok := parsedValue[path]
 		if ok {
 			return result, nil
@@ -223,14 +208,14 @@ func (this *value) Path(path string) (Value, error) {
 	return nil, &Undefined{path}
 }
 
-func (this *value) SetPath(path string, val interface{}) {
+func (this *Value) SetPath(path string, val interface{}) {
 
 	if this.parsedType == OBJECT {
 		switch parsedValue := this.parsedValue.(type) {
-		case map[string]Value:
+		case map[string]*Value:
 			// if we've already parsed the object, store it there
 			switch val := val.(type) {
-			case Value:
+			case *Value:
 				parsedValue[path] = val
 			default:
 				parsedValue[path] = NewValue(val)
@@ -238,10 +223,10 @@ func (this *value) SetPath(path string, val interface{}) {
 		case nil:
 			// if not store it in alias
 			if this.alias == nil {
-				this.alias = make(map[string]Value)
+				this.alias = make(map[string]*Value)
 			}
 			switch val := val.(type) {
-			case Value:
+			case *Value:
 				this.alias[path] = val
 			default:
 				this.alias[path] = NewValue(val)
@@ -251,7 +236,7 @@ func (this *value) SetPath(path string, val interface{}) {
 	}
 }
 
-func (this *value) Index(index int) (Value, error) {
+func (this *Value) Index(index int) (*Value, error) {
 	// aliases always have priority
 	if this.alias != nil {
 		result, ok := this.alias[strconv.Itoa(index)]
@@ -261,7 +246,7 @@ func (this *value) Index(index int) (Value, error) {
 	}
 	// next we already parsed, used that
 	switch parsedValue := this.parsedValue.(type) {
-	case []Value:
+	case []*Value:
 		if index >= 0 && index < len(parsedValue) {
 			result := parsedValue[index]
 			return result, nil
@@ -280,18 +265,17 @@ func (this *value) Index(index int) (Value, error) {
 			return NewValueFromBytes(res), nil
 		}
 	}
-
 	return nil, &Undefined{}
 }
 
-func (this *value) SetIndex(index int, val interface{}) {
+func (this *Value) SetIndex(index int, val interface{}) {
 	if this.parsedType == ARRAY && index >= 0 {
 		switch parsedValue := this.parsedValue.(type) {
-		case []Value:
+		case []*Value:
 			if index < len(parsedValue) {
 				// if we've already parsed the object, store it there
 				switch val := val.(type) {
-				case Value:
+				case *Value:
 					parsedValue[index] = val
 				default:
 					parsedValue[index] = NewValue(val)
@@ -300,10 +284,10 @@ func (this *value) SetIndex(index int, val interface{}) {
 		case nil:
 			// if not store it in alias
 			if this.alias == nil {
-				this.alias = make(map[string]Value)
+				this.alias = make(map[string]*Value)
 			}
 			switch val := val.(type) {
-			case Value:
+			case *Value:
 				this.alias[strconv.Itoa(index)] = val
 			default:
 				this.alias[strconv.Itoa(index)] = NewValue(val)
@@ -313,25 +297,25 @@ func (this *value) SetIndex(index int, val interface{}) {
 	}
 }
 
-func (this *value) Type() int {
+func (this *Value) Type() int {
 	return this.parsedType
 }
 
-func (this *value) AddMeta(key string, val interface{}) {
+func (this *Value) AddMeta(key string, val interface{}) {
 	if this.meta == nil {
-		this.meta = NewEmptyObjectValue()
+		this.meta = NewValue(map[string]interface{}{})
 	}
 	this.meta.SetPath(key, val)
 }
 
-func (this *value) Meta() Value {
+func (this *Value) Meta() *Value {
 	return this.meta
 }
 
 // the Value function exits this type system
 // it can be the most expensive call, as it may force parsing
 // large amounts of previously unparsed json
-func (this *value) Value() interface{} {
+func (this *Value) Value() interface{} {
 	if this.parsedValue != nil || this.parsedType == NULL {
 		rv := devalue(this.parsedValue)
 		if this.alias != nil {
@@ -361,7 +345,7 @@ func (this *value) Value() interface{} {
 
 func devalue(base interface{}) interface{} {
 	switch base := base.(type) {
-	case map[string]Value:
+	case map[string]*Value:
 		rv := make(map[string]interface{}, len(base))
 		for k, v := range base {
 			if v.Type() != NOT_JSON {
@@ -369,7 +353,7 @@ func devalue(base interface{}) interface{} {
 			}
 		}
 		return rv
-	case []Value:
+	case []*Value:
 		rv := make([]interface{}, len(base))
 		for i, v := range base {
 			rv[i] = v.Value()
@@ -399,7 +383,7 @@ func safeCopy(base interface{}) interface{} {
 	}
 }
 
-func overlayAlias(base interface{}, alias map[string]Value) {
+func overlayAlias(base interface{}, alias map[string]*Value) {
 	switch base := base.(type) {
 	case map[string]interface{}:
 		for k, v := range alias {
@@ -422,3 +406,13 @@ func overlayAlias(base interface{}, alias map[string]Value) {
 		}
 	}
 }
+
+const (
+	NOT_JSON = iota
+	NULL
+	BOOLEAN
+	NUMBER
+	STRING
+	ARRAY
+	OBJECT
+)

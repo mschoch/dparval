@@ -52,11 +52,11 @@ func TestPathAccess(t *testing.T) {
 
 	var tests = []struct {
 		path   string
-		result Value
+		result *Value
 		err    error
 	}{
-		{"name", &value{raw: []byte(`"marty"`), parsedType: STRING}, nil},
-		{"address", &value{raw: []byte(`{"street":"sutton oaks"}`), parsedType: OBJECT}, nil},
+		{"name", &Value{raw: []byte(`"marty"`), parsedType: STRING}, nil},
+		{"address", &Value{raw: []byte(`{"street":"sutton oaks"}`), parsedType: OBJECT}, nil},
 		{"dne", nil, &Undefined{"dne"}},
 	}
 
@@ -77,11 +77,11 @@ func TestIndexAccess(t *testing.T) {
 
 	var tests = []struct {
 		index  int
-		result Value
+		result *Value
 		err    error
 	}{
-		{0, &value{raw: []byte(`"marty"`), parsedType: STRING}, nil},
-		{1, &value{raw: []byte(`{"type":"contact"}`), parsedType: OBJECT}, nil},
+		{0, &Value{raw: []byte(`"marty"`), parsedType: STRING}, nil},
+		{1, &Value{raw: []byte(`{"type":"contact"}`), parsedType: OBJECT}, nil},
 		{2, nil, &Undefined{}},
 	}
 
@@ -99,11 +99,11 @@ func TestIndexAccess(t *testing.T) {
 
 	tests = []struct {
 		index  int
-		result Value
+		result *Value
 		err    error
 	}{
-		{0, &value{parsedValue: "marty", parsedType: STRING}, nil},
-		{1, &value{parsedValue: map[string]Value{"type": NewValue("contact")}, parsedType: OBJECT}, nil},
+		{0, &Value{parsedValue: "marty", parsedType: STRING}, nil},
+		{1, &Value{parsedValue: map[string]*Value{"type": NewValue("contact")}, parsedType: OBJECT}, nil},
 		{2, nil, &Undefined{}},
 	}
 
@@ -163,7 +163,7 @@ func TestRealWorkflow(t *testing.T) {
 	doc.AddMeta("id", "doc1")
 
 	// mutate the document somehow
-	active := NewBooleanValue(true)
+	active := NewValue(true)
 	doc.SetPath("active", active)
 
 	testActiveVal, err := doc.Path("active")
@@ -177,7 +177,7 @@ func TestRealWorkflow(t *testing.T) {
 	}
 
 	// create an alias of this documents
-	top := NewObjectValue(map[string]interface{}{"bucket": doc, "another": "rad"})
+	top := NewValue(map[string]interface{}{"bucket": doc, "another": "rad"})
 
 	testDoc, err := top.Path("bucket")
 	if err != nil {
@@ -191,7 +191,7 @@ func TestRealWorkflow(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error accessing another in top")
 	}
-	expectedRad := NewStringValue("rad")
+	expectedRad := NewValue("rad")
 	if !reflect.DeepEqual(testRad, expectedRad) {
 		t.Errorf("Expected %v, got %v for rad", expectedRad, testRad)
 	}
@@ -239,7 +239,7 @@ func TestUndefined(t *testing.T) {
 
 func TestValue(t *testing.T) {
 	var tests = []struct {
-		input         Value
+		input         *Value
 		expectedValue interface{}
 	}{
 		{NewValue(nil), nil},
@@ -251,9 +251,9 @@ func TestValue(t *testing.T) {
 		{NewValue(""), ""},
 		{NewValue("marty"), "marty"},
 		{NewValue([]interface{}{"marty"}), []interface{}{"marty"}},
-		{NewValue([]interface{}{NewValue("marty")}), []interface{}{"marty"}},
+		{NewValue([]interface{}{NewValue("marty2")}), []interface{}{"marty2"}},
 		{NewValue(map[string]interface{}{"marty": "cool"}), map[string]interface{}{"marty": "cool"}},
-		{NewValue(map[string]interface{}{"marty": NewValue("cool")}), map[string]interface{}{"marty": "cool"}},
+		{NewValue(map[string]interface{}{"marty3": NewValue("cool")}), map[string]interface{}{"marty3": "cool"}},
 		{NewValueFromBytes([]byte("null")), nil},
 		{NewValueFromBytes([]byte("true")), true},
 		{NewValueFromBytes([]byte("false")), false},
