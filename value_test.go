@@ -125,10 +125,7 @@ func TestAliasOverrides(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting path name")
 	}
-	nameVal, err := name.Value()
-	if err != nil {
-		t.Errorf("Error getting name value")
-	}
+	nameVal := name.Value()
 	if nameVal != "steve" {
 		t.Errorf("Expected name to be steve, got %v", nameVal)
 	}
@@ -139,10 +136,7 @@ func TestAliasOverrides(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error getting path name")
 	}
-	nameVal, err = name.Value()
-	if err != nil {
-		t.Errorf("Error getting name value")
-	}
+	nameVal = name.Value()
 	if nameVal != "gerald" {
 		t.Errorf("Expected name to be gerald, got %v", nameVal)
 	}
@@ -156,7 +150,7 @@ func TestMeta(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error access id path in meta")
 	}
-	id, err := idVal.Value()
+	id := idVal.Value()
 	if id != "doc1" {
 		t.Errorf("Expected id doc1, got %v", id)
 	}
@@ -177,10 +171,7 @@ func TestRealWorkflow(t *testing.T) {
 		t.Errorf("Error accessing active in doc")
 	}
 
-	testActive, err := testActiveVal.Value()
-	if err != nil {
-		t.Errorf("Error accesing active value")
-	}
+	testActive := testActiveVal.Value()
 	if testActive != true {
 		t.Errorf("Expected active true, got %v", testActive)
 	}
@@ -222,10 +213,7 @@ func TestRealWorkflow(t *testing.T) {
 	if err != nil {
 		t.Errorf("Error accessing street in a")
 	}
-	street, err := streetVal.Value()
-	if err != nil {
-		t.Errorf("Error accessing street value")
-	}
+	street := streetVal.Value()
 	if street != "sutton oaks" {
 		t.Errorf("Expected sutton oaks, got %v", street)
 	}
@@ -263,7 +251,9 @@ func TestValue(t *testing.T) {
 		{NewValue(""), ""},
 		{NewValue("marty"), "marty"},
 		{NewValue([]interface{}{"marty"}), []interface{}{"marty"}},
+		{NewValue([]interface{}{NewValue("marty")}), []interface{}{"marty"}},
 		{NewValue(map[string]interface{}{"marty": "cool"}), map[string]interface{}{"marty": "cool"}},
+		{NewValue(map[string]interface{}{"marty": NewValue("cool")}), map[string]interface{}{"marty": "cool"}},
 		{NewValueFromBytes([]byte("null")), nil},
 		{NewValueFromBytes([]byte("true")), true},
 		{NewValueFromBytes([]byte("false")), false},
@@ -274,13 +264,13 @@ func TestValue(t *testing.T) {
 		{NewValueFromBytes([]byte("\"marty\"")), "marty"},
 		{NewValueFromBytes([]byte("[\"marty\"]")), []interface{}{"marty"}},
 		{NewValueFromBytes([]byte("{\"marty\": \"cool\"}")), map[string]interface{}{"marty": "cool"}},
+		{NewValueFromBytes([]byte("abc")), nil},
+		// new value from existing value
+		{NewValue(NewValue(true)), true},
 	}
 
 	for _, test := range tests {
-		val, err := test.input.Value()
-		if err != nil {
-			t.Errorf("Got error for value of %v", test.input)
-		}
+		val := test.input.Value()
 		if !reflect.DeepEqual(val, test.expectedValue) {
 			t.Errorf("Expected %#v, got %#v for %#v", test.expectedValue, val, test.input)
 		}
@@ -291,20 +281,14 @@ func TestValueOverlay(t *testing.T) {
 	val := NewValueFromBytes([]byte("{\"marty\": \"cool\"}"))
 	val.SetPath("marty", "ok")
 	expectedVal := map[string]interface{}{"marty": "ok"}
-	actualVal, err := val.Value()
-	if err != nil {
-		t.Errorf("Error getting value of val")
-	}
+	actualVal := val.Value()
 	if !reflect.DeepEqual(expectedVal, actualVal) {
 		t.Errorf("Expected %v, got %v, for value of %v", expectedVal, actualVal, val)
 	}
 
 	val = NewValue(map[string]interface{}{"marty": "cool"})
 	val.SetPath("marty", "ok")
-	actualVal, err = val.Value()
-	if err != nil {
-		t.Errorf("Error getting value of val")
-	}
+	actualVal = val.Value()
 	if !reflect.DeepEqual(expectedVal, actualVal) {
 		t.Errorf("Expected %v, got %v, for value of %v", expectedVal, actualVal, val)
 	}
@@ -312,10 +296,7 @@ func TestValueOverlay(t *testing.T) {
 	val = NewValueFromBytes([]byte("[\"marty\"]"))
 	val.SetIndex(0, "gerald")
 	expectedVal2 := []interface{}{"gerald"}
-	actualVal, err = val.Value()
-	if err != nil {
-		t.Errorf("Error getting value of val")
-	}
+	actualVal = val.Value()
 	if !reflect.DeepEqual(expectedVal2, actualVal) {
 		t.Errorf("Expected %v, got %v, for value of %v", expectedVal2, actualVal, val)
 	}
@@ -323,10 +304,7 @@ func TestValueOverlay(t *testing.T) {
 	val = NewValue([]interface{}{"marty"})
 	val.SetIndex(0, "gerald")
 	expectedVal2 = []interface{}{"gerald"}
-	actualVal, err = val.Value()
-	if err != nil {
-		t.Errorf("Error getting value of val")
-	}
+	actualVal = val.Value()
 	if !reflect.DeepEqual(expectedVal2, actualVal) {
 		t.Errorf("Expected %v, got %v, for value of %v", expectedVal2, actualVal, val)
 	}
@@ -340,18 +318,12 @@ func TestComplexOverlay(t *testing.T) {
 	val := NewValueFromBytes([]byte("{\"marty\": \"cool\"}"))
 	val.SetPath("marty", "ok")
 	expectedVal := map[string]interface{}{"marty": "ok"}
-	actualVal, err := val.Value()
-	if err != nil {
-		t.Errorf("Error getting value of val")
-	}
+	actualVal := val.Value()
 	if !reflect.DeepEqual(expectedVal, actualVal) {
 		t.Errorf("Expected %v, got %v, for value of %v", expectedVal, actualVal, val)
 	}
 	// now repeat the call to value
-	actualVal, err = val.Value()
-	if err != nil {
-		t.Errorf("Error getting value of val")
-	}
+	actualVal = val.Value()
 	if !reflect.DeepEqual(expectedVal, actualVal) {
 		t.Errorf("Expected %v, got %v, for value of %v", expectedVal, actualVal, val)
 	}

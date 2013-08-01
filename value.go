@@ -47,7 +47,7 @@ type Value interface {
 	Index(index int) (Value, error)
 	SetIndex(index int, val interface{})
 	Type() int
-	Value() (interface{}, error)
+	Value() interface{}
 
 	AddMeta(key string, val interface{})
 	Meta() Value
@@ -331,19 +331,13 @@ func (this *value) Meta() Value {
 // the Value function exits this type system
 // it can be the most expensive call, as it may force parsing
 // large amounts of previously unparsed json
-func (this *value) Value() (interface{}, error) {
+func (this *value) Value() interface{} {
 	if this.parsedValue != nil || this.parsedType == NULL {
-		rv, err := devalue(this.parsedValue)
-		if err != nil {
-			return nil, err
-		}
+		rv := devalue(this.parsedValue)
 		if this.alias != nil {
-			err := overlayAlias(rv, this.alias)
-			if err != nil {
-				return nil, err
-			}
+			overlayAlias(rv, this.alias)
 		}
-		return rv, nil
+		return rv
 	} else if this.parsedType != NOT_JSON {
 		err := json.Unmarshal(this.raw, &this.parsedValue)
 		if err != nil {
@@ -353,93 +347,78 @@ func (this *value) Value() (interface{}, error) {
 		// and then overlay them
 		if this.alias != nil {
 			// we cannot damange the original parsed value
-			rv, err := safeCopy(this.parsedValue)
-			if err != nil {
-				return nil, err
-			}
-			err = overlayAlias(rv, this.alias)
-			if err != nil {
-				return nil, err
-			}
-			return rv, nil
+			rv := safeCopy(this.parsedValue)
+			overlayAlias(rv, this.alias)
+			return rv
 		} else {
 			// otherwise its safe to return directly
-			return this.parsedValue, nil
+			return this.parsedValue
 		}
 	} else {
-		return nil, &Undefined{}
+		return nil
 	}
 }
 
-func devalue(base interface{}) (interface{}, error) {
-	var err error
+func devalue(base interface{}) interface{} {
 	switch base := base.(type) {
 	case map[string]Value:
 		rv := make(map[string]interface{}, len(base))
 		for k, v := range base {
-			rv[k], err = v.Value()
-			if err != nil {
-				return nil, err
+			if v.Type() != NOT_JSON {
+				rv[k] = v.Value()
 			}
 		}
-		return rv, nil
+		return rv
 	case []Value:
 		rv := make([]interface{}, len(base))
 		for i, v := range base {
-			rv[i], err = v.Value()
-			if err != nil {
-				return nil, err
-			}
+			rv[i] = v.Value()
 		}
-		return rv, nil
+		return rv
 	default:
-		return base, nil
+		return base
 	}
 }
 
-func safeCopy(base interface{}) (interface{}, error) {
+func safeCopy(base interface{}) interface{} {
 	switch base := base.(type) {
 	case map[string]interface{}:
 		rv := make(map[string]interface{}, len(base))
 		for k, v := range base {
 			rv[k] = v
 		}
-		return rv, nil
+		return rv
 	case []interface{}:
 		rv := make([]interface{}, len(base))
 		for i, v := range base {
 			rv[i] = v
 		}
-		return rv, nil
+		return rv
 	default:
-		return base, nil
+		return base
 	}
 }
 
-func overlayAlias(base interface{}, alias map[string]Value) error {
-	var err error
+func overlayAlias(base interface{}, alias map[string]Value) {
 	switch base := base.(type) {
 	case map[string]interface{}:
 		for k, v := range alias {
-			base[k], err = v.Value()
-			if err != nil {
-				return err
+			if v.Type() != NOT_JSON {
+				base[k] = v.Value()
 			}
 		}
 	case []interface{}:
 		for k, v := range alias {
 			bigi, err := strconv.ParseInt(k, 10, 32)
 			if err != nil {
-				return err
+				panic("alias index for array could not be converted to int")
 			}
 			i := int(bigi)
 			if i >= 0 && i < len(base) {
-				base[i], err = v.Value()
-				if err != nil {
-					return err
+				if v.Type() != NOT_JSON {
+					base[i] = v.Value()
 				}
 			}
 		}
 	}
-	return nil
 }
