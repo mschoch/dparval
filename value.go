@@ -280,6 +280,108 @@ func (this *Value) Value() interface{} {
 	}
 }
 
+func (this *Value) Bytes() []byte {
+	switch this.parsedType {
+	case OBJECT:
+		if this.parsedValue == nil && this.alias == nil && this.raw != nil {
+			return this.raw
+		}
+		if this.parsedValue == nil {
+			err := json.Unmarshal(this.raw, &this.parsedValue)
+			if err != nil {
+				panic("unexpected parse error on valid JSON")
+			}
+		}
+		rv := safeCopy(this.parsedValue)
+		if this.alias != nil {
+			overlayAlias(rv, this.alias)
+		}
+		// now we just need to serialize rv
+		var togo map[string]*json.RawMessage
+		switch rv := rv.(type) {
+		case map[string]*Value:
+			togo = make(map[string]*json.RawMessage, len(rv))
+			for k, v := range rv {
+				innerBytes := v.Bytes()
+				rawMessage := json.RawMessage(innerBytes)
+				togo[k] = &rawMessage
+			}
+		case map[string]interface{}:
+			togo = make(map[string]*json.RawMessage, len(rv))
+			for k, v := range rv {
+				innerBytes, err := json.Marshal(v)
+				if err != nil {
+					panic("unexpected error marshaling valid data")
+				}
+				rawMessage := json.RawMessage(innerBytes)
+				togo[k] = &rawMessage
+			}
+		default:
+			panic(fmt.Sprintf("unexpected parsedValue type for OBJECT %T", rv))
+		}
+		final, err := json.Marshal(togo)
+		if err != nil {
+			panic("unexpected marshall error on valid data")
+		}
+		return final
+	case ARRAY:
+		if this.parsedValue == nil && this.alias == nil && this.raw != nil {
+			return this.raw
+		}
+		if this.parsedValue == nil {
+			err := json.Unmarshal(this.raw, &this.parsedValue)
+			if err != nil {
+				panic("unexpected parse error on valid JSON")
+			}
+		}
+		rv := safeCopy(this.parsedValue)
+		if this.alias != nil {
+			overlayAlias(rv, this.alias)
+		}
+		// now we just need to serialize rv
+		var togo []*json.RawMessage
+		switch rv := rv.(type) {
+		case []*Value:
+			togo = make([]*json.RawMessage, len(rv))
+			for i, v := range rv {
+				innerBytes := v.Bytes()
+				rawMessage := json.RawMessage(innerBytes)
+				togo[i] = &rawMessage
+			}
+		case []interface{}:
+			togo = make([]*json.RawMessage, len(rv))
+			for i, v := range rv {
+				innerBytes, err := json.Marshal(v)
+				if err != nil {
+					panic("unexpected error marshaling valid data")
+				}
+				rawMessage := json.RawMessage(innerBytes)
+				togo[i] = &rawMessage
+			}
+		default:
+			panic(fmt.Sprintf("unexpected parsedValue type for ARRAY %T", rv))
+		}
+		final, err := json.Marshal(togo)
+		if err != nil {
+			panic("unexpected marshall error on valid data")
+		}
+		return final
+	default:
+		// non-array, non-object types are immutable
+		// if the raw bytes exist, use them
+		if this.raw != nil {
+			return this.raw
+		} else {
+			//otherwise encode the parsed value
+			bytes, err := json.Marshal(this.parsedValue)
+			if err != nil {
+				panic("unexpected marshall error on valid data")
+			}
+			return bytes
+		}
+	}
+}
+
 // The types supported by Value
 const (
 	NOT_JSON = iota

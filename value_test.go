@@ -10,9 +10,36 @@
 package dparval
 
 import (
+	"compress/gzip"
+	"encoding/json"
+	"io/ioutil"
+	"os"
 	"reflect"
 	"testing"
+	// "time"
+
+	jsonpointer "github.com/dustin/go-jsonpointer"
 )
+
+var codeJSON []byte
+
+func init() {
+	f, err := os.Open("testdata/code.json.gz")
+	if err != nil {
+		panic(err)
+	}
+	defer f.Close()
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		panic(err)
+	}
+	data, err := ioutil.ReadAll(gz)
+	if err != nil {
+		panic(err)
+	}
+
+	codeJSON = data
+}
 
 func TestTypeRecognition(t *testing.T) {
 
@@ -326,5 +353,139 @@ func TestComplexOverlay(t *testing.T) {
 	actualVal = val.Value()
 	if !reflect.DeepEqual(expectedVal, actualVal) {
 		t.Errorf("Expected %v, got %v, for value of %v", expectedVal, actualVal, val)
+	}
+}
+
+func TestUnmodifiedValuesFromBytesBackToBytes(t *testing.T) {
+	var tests = []struct {
+		input         []byte
+		expectedBytes []byte
+	}{
+		{[]byte(`asdf`), []byte(`asdf`)},
+		{[]byte(`null`), []byte(`null`)},
+		{[]byte(`3.65`), []byte(`3.65`)},
+		{[]byte(`-3.65`), []byte(`-3.65`)},
+		{[]byte(`"hello"`), []byte(`"hello"`)},
+		{[]byte(`["hello"]`), []byte(`["hello"]`)},
+		{[]byte(`{"hello":7}`), []byte(`{"hello":7}`)},
+
+		// with misc whitespace
+		{[]byte(` asdf`), []byte(` asdf`)},
+		{[]byte(` null`), []byte(` null`)},
+		{[]byte(` 3.65`), []byte(` 3.65`)},
+		{[]byte(` "hello"`), []byte(` "hello"`)},
+		{[]byte(` "hello"`), []byte(` "hello"`)},
+		{[]byte("\n{\"hello\":7}"), []byte("\n{\"hello\":7}")},
+	}
+
+	for _, test := range tests {
+		val := NewValueFromBytes(test.input)
+		out := val.Bytes()
+		if !reflect.DeepEqual(out, test.expectedBytes) {
+			t.Errorf("Expected %s to be  %s, got %s", string(test.input), string(test.expectedBytes), string(out))
+		}
+	}
+}
+
+func TestUnmodifiedValuesBackToBytes(t *testing.T) {
+	var tests = []struct {
+		input         *Value
+		expectedBytes []byte
+	}{
+		{NewValue(nil), []byte(`null`)},
+		{NewValue(3.65), []byte(`3.65`)},
+		{NewValue(-3.65), []byte(`-3.65`)},
+		{NewValue("hello"), []byte(`"hello"`)},
+		{NewValue([]interface{}{"hello"}), []byte(`["hello"]`)},
+		{NewValue(map[string]interface{}{"hello": 7.0}), []byte(`{"hello":7}`)},
+	}
+
+	for _, test := range tests {
+		out := test.input.Bytes()
+		if !reflect.DeepEqual(out, test.expectedBytes) {
+			t.Errorf("Expected %v to be  %s, got %s", test.input, string(test.expectedBytes), string(out))
+		}
+	}
+}
+
+func TestValuesWithAliasingBackToBytes(t *testing.T) {
+	val := NewValue(map[string]interface{}{"name": "marty", "level": 7.0})
+	val.SetPath("name", "gerald")
+	out := val.Bytes()
+	if !reflect.DeepEqual(out, []byte(`{"level":7,"name":"gerald"}`)) {
+		t.Errorf("Incorrect output %s", string(out))
+	}
+
+	val = NewValue([]interface{}{"name", "marty"})
+	val.SetIndex(1, "gerald")
+	out = val.Bytes()
+	if !reflect.DeepEqual(out, []byte(`["name","gerald"]`)) {
+		t.Errorf("Incorrect output %s", string(out))
+	}
+}
+
+func TestValuesFromBytesWithAliasingBackToBytes(t *testing.T) {
+	val := NewValueFromBytes([]byte(`{"name": "marty", "level": 7}`))
+	val.SetPath("name", "gerald")
+	out := val.Bytes()
+	if !reflect.DeepEqual(out, []byte(`{"level":7,"name":"gerald"}`)) {
+		t.Errorf("Incorrect output %s", string(out))
+	}
+
+	val = NewValueFromBytes([]byte(`["name", "marty"]`))
+	val.SetIndex(1, "gerald")
+	out = val.Bytes()
+	if !reflect.DeepEqual(out, []byte(`["name","gerald"]`)) {
+		t.Errorf("Incorrect output %s", string(out))
+	}
+}
+
+func BenchmarkLargeValue(b *testing.B) {
+	b.SetBytes(int64(len(codeJSON)))
+
+	keys := []interface{}{
+		"tree", "kids", 0, "kids", 0, "kids", 0, "kids", 0, "kids", 0, "name",
+	}
+
+	for i := 0; i < b.N; i++ {
+		var err error
+		val := NewValueFromBytes(codeJSON)
+		for _, key := range keys {
+			switch key := key.(type) {
+			case string:
+				val, err = val.Path(key)
+				if err != nil {
+					b.Errorf("error accessing path %v", key)
+				}
+			case int:
+				val, err = val.Index(key)
+				if err != nil {
+					b.Errorf("error accessing index %v", key)
+				}
+			}
+		}
+		value := val.Value()
+		if value.(string) != "ssh" {
+			b.Errorf("expected value ssh, got %v", value)
+		}
+	}
+}
+
+func BenchmarkLargeMap(b *testing.B) {
+	keys := []string{
+		"/tree/kids/0/kids/0/kids/0/kids/0/kids/0/name",
+	}
+	b.SetBytes(int64(len(codeJSON)))
+
+	for i := 0; i < b.N; i++ {
+		m := map[string]interface{}{}
+		err := json.Unmarshal(codeJSON, &m)
+		if err != nil {
+			b.Fatalf("Error parsing JSON: %v", err)
+		}
+		value := jsonpointer.Get(m, keys[0])
+		if value.(string) != "ssh" {
+			b.Errorf("expected value ssh, got %v", value)
+		}
 	}
 }
