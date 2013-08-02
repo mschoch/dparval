@@ -10,42 +10,28 @@
 package main
 
 import (
-	"log"
+	"fmt"
 
 	"github.com/mschoch/dparval"
 )
 
 func main() {
-	// read some JSON off the wire
+
+	// read some JSON
 	bytes := []byte(`{"type":"test"}`)
-	value := dparval.NewValueFromBytes(bytes)
 
-	// is this actually JSON?
-	if value.Type() == dparval.NOT_JSON {
-		log.Printf("These bytes are not valid JSON")
-	} else {
+	// create a Value object
+	doc := dparval.NewValueFromBytes(bytes)
 
-		// maybe the document had a field called "type"
-		anotherVal, err := value.Path("type")
-
-		if err != nil {
-			err, ok := err.(*dparval.Undefined)
-			if ok {
-				log.Printf("type is undefined")
-			} else {
-				log.Printf("Unexpected error: %v", err)
-			}
-		} else {
-
-			// anotherVal is another Value
-			// we stay in this type system as long as possible
-			// (so far we've avoided any fully JSON parsing)
-			// lets see if type was a string
-			if anotherVal.Type() == dparval.STRING {
-				docType := anotherVal.Value()
-				log.Printf("The document type was %s", docType.(string))
-
-			}
-		}
+	// attempt to access a nested Value
+	docType, err := doc.Path("type")
+	if err != nil {
+		panic("no property type exists")
 	}
+
+	// convert docType to a native go value
+	docTypeValue := docType.Value()
+
+	// display the value
+	fmt.Printf("document type is %v\n", docTypeValue)
 }

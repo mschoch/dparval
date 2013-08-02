@@ -2,73 +2,55 @@
 
 The goal is offer a consistent type structure to allow you to process JSON end-to-end with minimal parsing.
 
-Key aspects of the design:
+### Features
 
-* use unparsed JSON bytes to create Value object
-* use Type() method to identify or respond to the type of data
-* access nested values using Path() and Index() methods
-    * these also return Value objects (or Undefined) and allow you to continue delaying parsing of nested objects
-* SetPath() and SetIndex() allow you to overlay new values in objects and arrays
-    * these do not disturb the original unparsed values
-    * aliased values always take priority over original data in subsequent calls to Path() and Index()
-    * aliased values are overlayed on top of the original if/when you call Value() to exit the type system
-* call Value() at any time to exit the type system
-    * this can be used to access the specific values you need (without ever parsing parts you didnt need)
-    * this triggers actual parsing of the raw bytes
-    * when aliases are used, additional objects may be created in this phase
+* Create Value objects with unparsed JSON bytes or with JSON compatible go datatypes
+* Access nested data using Path() and Index() methods
+    * these also return Value objects (or Undefined) allowing you to delay parsing of nested objects as well
+* Values of type OBJECT and ARRAY are mutable
+    * SetPath() and SetIndex() allow you to overlay new Values into these objects
+* Returning to []byte can be done at any time by calling Bytes()
+    * the underlying raw bytes are reused if possible to avoid JSON encoding
+* Exit the type system at any time by calling Value()
+    * this will trigger parsing of any required values that have not yet been parsed
+* Arbitrary data may be attached to a Value using the Set/Get/Remove Attachment() methods
+* Check the type of Value using the Type() method
 
-Additional Features:
+### Documentation
 
-* attach arbitrary meta-data to any Value using AddMeta() methods
-* read back stored meta-data using Meta()
-* meta-data is just another Value
+See [GoDoc](http://godoc.org/github.com/mschoch/dparval)
 
-Future Ideas:
+### Performance
 
-* Add ValueBytes() method which can go back to bytes
-    * optimized to use raw bytes when no aliases were introduced
+Two simple benchmarks which process a 1MB JSON file.  The first uses NewValueFromBytes() with Path(), Index() and Value() calls and the second using json.Unmarshal() and map/slice calls.  Both versions access the same property.
 
-## example usage
+    $ go test -bench .
+    PASS
+    BenchmarkLargeValue	      20	  76905386 ns/op	  25.23 MB/s
+    BenchmarkLargeMap	      20	 116378934 ns/op	  16.67 MB/s
+    ok  	github.com/mschoch/dparval	4.179s
 
-	package main
+### Usage
 
-	import (
-		"log"
+	// read some JSON
+	bytes := []byte(`{"type":"test"}`)
 
-		"github.com/mschoch/dparval"
-	)
+	// create a Value object
+	doc := dparval.NewValueFromBytes(bytes)
 
-	func main() {
-		// read some JSON off the wire
-		bytes := []byte(`{"type":"test"}`)
-		value := dparval.NewValueFromBytes(bytes)
-
-		// is this actually JSON?
-		if value.Type() == dparval.NOT_JSON {
-			log.Printf("These bytes are not valid JSON")
-		} else {
-
-			// maybe the document had a field called "type"
-			anotherVal, err := value.Path("type")
-
-			if err != nil {
-				err, ok := err.(*dparval.Undefined)
-				if ok {
-					log.Printf("type is undefined")
-				} else {
-					log.Printf("Unexpected error: %v", err)
-				}
-			} else {
-
-				// anotherVal is another Value
-				// we stay in this type system as long as possible
-				// (so far we've avoided any fully JSON parsing)
-				// lets see if type was a string
-				if anotherVal.Type() == dparval.STRING {
-					docType := anotherVal.Value()
-					log.Printf("The document type was %s", docType.(string))
-
-				}
-			}
-		}
+	// attempt to access a nested Value
+	docType, err := doc.Path("type")
+	if err != nil {
+		panic("no property type exists")
 	}
+
+	// convert docType to a native go value
+	docTypeValue := docType.Value()
+
+	// display the value
+	fmt.Printf("document type is %v\n", docTypeValue)
+
+### Output
+
+    $ ./example
+    document type is test
