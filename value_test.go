@@ -169,17 +169,18 @@ func TestAliasOverrides(t *testing.T) {
 	}
 }
 
-func TestMeta(t *testing.T) {
+func TestAttachments(t *testing.T) {
 	val := NewValueFromBytes([]byte(`{"name":"marty","address":{"street":"sutton oaks"}}`))
-	val.AddMeta("id", "doc1")
+	val.SetAttachment("meta", map[string]interface{}{"id": "doc1"})
 
-	idVal, err := val.Meta().Path("id")
-	if err != nil {
-		t.Errorf("Error access id path in meta")
-	}
-	id := idVal.Value()
-	if id != "doc1" {
-		t.Errorf("Expected id doc1, got %v", id)
+	meta := val.GetAttachment("meta").(map[string]interface{})
+	if meta == nil {
+		t.Errorf("metadata missing")
+	} else {
+		id := meta["id"].(string)
+		if id != "doc1" {
+			t.Errorf("Expected id doc1, got %v", id)
+		}
 	}
 
 }
@@ -187,7 +188,7 @@ func TestMeta(t *testing.T) {
 func TestRealWorkflow(t *testing.T) {
 	// get a doc from some source
 	doc := NewValueFromBytes([]byte(`{"name":"marty","address":{"street":"sutton oaks"}}`))
-	doc.AddMeta("id", "doc1")
+	doc.SetAttachment("meta", map[string]interface{}{"id": "doc1"})
 
 	// mutate the document somehow
 	active := NewValue(true)
@@ -487,5 +488,17 @@ func BenchmarkLargeMap(b *testing.B) {
 		if value.(string) != "ssh" {
 			b.Errorf("expected value ssh, got %v", value)
 		}
+	}
+}
+
+func TestJsonPointerInvalidJSON(t *testing.T) {
+	bytes := []byte(`{"test":"value"`)
+	val, err := jsonpointer.Find(bytes, "/test")
+	if err != nil {
+		t.Errorf("unexpected error %v", err)
+	}
+
+	if !reflect.DeepEqual(val, []byte(`"value"`)) {
+		t.Errorf(`expected "value", got : %v`, string(val))
 	}
 }

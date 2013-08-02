@@ -43,7 +43,7 @@ type Value struct {
 	parsedValue interface{}
 	alias       map[string]*Value
 	parsedType  int
-	meta        *Value
+	attachments map[string]interface{}
 }
 
 // Create a new Value object from an existing object.  MUST be one of the types supported by JSON.
@@ -237,15 +237,33 @@ func (this *Value) SetIndex(index int, val interface{}) {
 	}
 }
 
-func (this *Value) AddMeta(key string, val interface{}) {
-	if this.meta == nil {
-		this.meta = NewValue(map[string]interface{}{})
+// Attach an arbitrary object to this Value with the specified key.
+// Any existing value attached with this same key will be overwritten.
+func (this *Value) SetAttachment(key string, val interface{}) {
+	if this.attachments == nil {
+		this.attachments = make(map[string]interface{})
 	}
-	this.meta.SetPath(key, val)
+	this.attachments[key] = val
 }
 
-func (this *Value) Meta() *Value {
-	return this.meta
+// Return the object attached to this Value with this key.
+// If no object is attached with this key, nil is returned.
+func (this *Value) GetAttachment(key string) interface{} {
+	if this.attachments != nil {
+		return this.attachments[key]
+	}
+	return nil
+}
+
+// Remove an object attached to this Value with this key.
+// If there had been an object attached to this Value with this key it is returned, otherwise nil.
+func (this *Value) RemoveAttachment(key string) interface{} {
+	var rv interface{}
+	if this.attachments != nil {
+		rv = this.attachments[key]
+		delete(this.attachments, key)
+	}
+	return rv
 }
 
 // The Value() function allows the data stored in this Value to return to its native Go representation.
